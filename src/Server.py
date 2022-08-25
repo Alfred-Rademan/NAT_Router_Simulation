@@ -20,8 +20,8 @@ def recieve_DHCPConnect(server:socket):
         recv_packet, addr = server.recvfrom(1024)
         packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
         dhcp_type = packet.options.as_dict()['dhcp_message_type']
-        print(packet)
-        print(dhcp_type)
+        #print(packet)
+        #print(dhcp_type)
 
         if packet.op == 'BOOTREQUEST' and dhcp_type == 'DHCPDISCOVER':
             handle_Connect(packet,server)
@@ -31,7 +31,11 @@ def connect(server):
     packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
     dhcp_type = packet.options.as_dict()['dhcp_message_type']
     if packet.op == 'BOOTREQUEST' and dhcp_type == 'DHCPREQUEST':
-        print(packet.yiaddr)
+        client_mac = packet.chaddr
+        assigned_table[client_mac] = packet.yiaddr
+        connect_packet = dhcppython.packet.DHCPPacket.Ack(mac_addr,0,packet.xid,packet.yiaddr)
+        server.sendto(connect_packet.asbytes,('<broadcast>',4020))
+
 
 def handle_Connect(packet, server):
 

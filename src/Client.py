@@ -4,6 +4,7 @@ import socket
 import dhcppython
 
 mac_addr = 'AB:CD:BE:EF:C0:74'
+ip = ''
 
 def send_DHCPDisc(clientsock):
 
@@ -40,6 +41,16 @@ def send_Req(offer_ip, rec_ID,clientsock):
     file=b'',
     options=dhcppython.options.OptionList([dhcppython.options.options.short_value_to_object(53, "DHCPREQUEST")]))
     clientsock.sendto(packet.asbytes, ('<broadcast>', 5000))
+    connect(clientsock)
+
+# Add if condition
+def connect(clientsock):
+    recv_packet, addr = clientsock.recvfrom(1024)
+    packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
+    ip = packet.yiaddr
+    print(ip)
+
+
 
 def main():
     clientsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
