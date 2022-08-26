@@ -1,4 +1,5 @@
 import ipaddress
+from traceback import print_list
 import scapy
 import socket
 import dhcppython
@@ -8,6 +9,7 @@ mac_addr = 'BB:CD:BE:EF:C0:34'
 ip_pool = []
 ip_assigned = []
 assigned_table = {}
+nat_table = {}
 
 def ip_create(start, end):
     for num in range(start,end):
@@ -20,8 +22,8 @@ def recieve_DHCPConnect(server:socket):
         recv_packet, addr = server.recvfrom(1024)
         packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
         dhcp_type = packet.options.as_dict()['dhcp_message_type']
-        #print(packet)
-        #print(dhcp_type)
+        print(packet)
+        print(dhcp_type)
 
         if packet.op == 'BOOTREQUEST' and dhcp_type == 'DHCPDISCOVER':
             handle_Connect(packet,server)
@@ -33,6 +35,8 @@ def connect(server):
     if packet.op == 'BOOTREQUEST' and dhcp_type == 'DHCPREQUEST':
         client_mac = packet.chaddr
         assigned_table[client_mac] = packet.yiaddr
+        nat_table[addr] = packet.yiaddr
+        print(nat_table)
         connect_packet = dhcppython.packet.DHCPPacket.Ack(mac_addr,0,packet.xid,packet.yiaddr)
         server.sendto(connect_packet.asbytes,('<broadcast>',4020))
 
@@ -44,17 +48,26 @@ def handle_Connect(packet, server):
     offered_IP = None
     i = 2
 
-    while offered_IP == None and ip_assigned.count != ip_pool.count :
+    while offered_IP == None and ip_assigned.count != ip_pool.count and i < 10:
         test_IP = ip_pool[i]
         if test_IP not in ip_assigned:
             offered_IP = test_IP
             ip_assigned.append(test_IP)
         i += 1
-    
-    offer_packet = dhcppython.packet.DHCPPacket.Offer(mac_addr,0,rec_ID,
-    ipaddress.IPv4Address(offered_IP))
-    server.sendto(offer_packet.asbytes,('<broadcast>', 4020))
-    connect(server)    
+    #print(str(ipaddress.IPv4Address(0)))
+    if offered_IP == None :
+
+        print("kk")
+        offer_packet = dhcppython.packet.DHCPPacket.Offer(mac_addr,0,rec_ID,
+        ipaddress.IPv4Address(0))
+        server.sendto(offer_packet.asbytes,('<broadcast>', 4020))
+
+    else:
+
+        offer_packet = dhcppython.packet.DHCPPacket.Offer(mac_addr,0,rec_ID,
+        ipaddress.IPv4Address(offered_IP))
+        server.sendto(offer_packet.asbytes,('<broadcast>', 4020))
+        connect(server)     
     
 
 def main():

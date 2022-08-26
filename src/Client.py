@@ -18,10 +18,11 @@ def offer_wait(clientsock):
     packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
     dhcp_type = packet.options.as_dict()['dhcp_message_type']
 
-    if packet.op == 'BOOTREPLY' and dhcp_type == 'DHCPOFFER':
+    if packet.op == 'BOOTREPLY' and dhcp_type == 'DHCPOFFER' :
         offer_ip = packet.yiaddr
         rec_ID = packet.xid
-        send_Req(offer_ip, rec_ID, clientsock)
+        if offer_ip != ipaddress.IPv4Address(0):
+            send_Req(offer_ip, rec_ID, clientsock)
 
 def send_Req(offer_ip, rec_ID,clientsock):
 
