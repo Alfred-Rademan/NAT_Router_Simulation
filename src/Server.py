@@ -11,7 +11,16 @@ ip_assigned = []
 assigned_table = {}
 nat_table = {}
 lock = Lock()
-leaseTime = 3
+leaseTime = 300
+
+def diconnect(packet, addr):
+    client_mac = packet.chaddr
+    client_ip = packet.yiaddr
+    ip_assigned.remove(str(client_ip))
+    assigned_table.pop(client_mac)
+    nat_table.pop(addr)
+    print(nat_table)
+    print("disc")
 
 def ip_create(start, end):
     for num in range(start,end):
@@ -20,15 +29,22 @@ def ip_create(start, end):
 def recieve_DHCPConnect(server:socket):
 
     while True:
+
         reconnect = False
         recv_packet, addr = server.recvfrom(1024)
         packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
         dhcp_type = packet.options.as_dict()['dhcp_message_type']
-        if addr in nat_table:
+        if dhcp_type == "DHCPRELEASE" :
+
+            diconnect(packet,addr)
+
+        elif addr in nat_table:
+
             reconnect = True
             print("renew")
             connect(server, reconnect, packet)
-        if packet.op == 'BOOTREQUEST' and dhcp_type == 'DHCPDISCOVER':
+
+        elif packet.op == 'BOOTREQUEST' and dhcp_type == 'DHCPDISCOVER':
             handle_Connect(packet,server)
         
             
@@ -43,13 +59,17 @@ def connect(server, reconnect, pre_pack):
         packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
         dhcp_type = packet.options.as_dict()['dhcp_message_type']
         print(reconnect)
+
         if (packet.op == 'BOOTREQUEST' and dhcp_type == 'DHCPREQUEST'):
+
             client_mac = packet.chaddr
             assigned_table[client_mac] = packet.yiaddr
             nat_table[addr] = packet.yiaddr
             connect_packet = dhcppython.packet.DHCPPacket.Ack(mac_addr,leaseTime,packet.xid,packet.yiaddr)
             server.sendto(connect_packet.asbytes,('<broadcast>',4020))
+
     else:
+
         connect_packet = dhcppython.packet.DHCPPacket.Ack(mac_addr,leaseTime,pre_pack.xid,pre_pack.yiaddr)
         server.sendto(connect_packet.asbytes,('<broadcast>',4020))
 

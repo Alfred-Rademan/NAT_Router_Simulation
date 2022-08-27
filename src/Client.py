@@ -1,23 +1,34 @@
+from concurrent.futures import thread
 import ipaddress
 import scapy
 import socket
 import dhcppython
 import time
-from threading import Thread, Lock
+from threading import Thread, Lock, current_thread
+
+
 mac_addr = 'AB:CD:BE:EF:C0:74'
 ip = ''
 recID = ''
 connected = False
+timeout_thread = None
+lock = Lock()
+disc = False
 
 def timeout(lease_time, clientsock):
-    while True:
+    global timeout_thread
+    timeout_thread = current_thread()
+
+    while getattr(timeout_thread,"running",True):
+        
         print("thread started")
         time.sleep(lease_time)
         print("slept")
         print(ip)
+        lock.acquire()
         send_Req(ip,recID,clientsock)
-        print("renewed")
-
+        lock.release()
+        
 
 def send_DHCPDisc(clientsock):
 
@@ -68,22 +79,51 @@ def send_Req(offer_ip, rec_ID,clientsock):
 
 # Add if condition
 def connect(clientsock):
+
     print("c0nnect")
-    recv_packet, addr = clientsock.recvfrom(1024)
-    print("c0nnect2")
-    packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
+    if not disc:
+        recv_packet, addr = clientsock.recvfrom(1024)
+        print("c0nnect2")
+        packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
+        global ip
+        global recID
+        global connected
+        ip = packet.yiaddr 
+        recID = packet.xid
+        time = packet.secs
+        print(time)
+
+        if not connected:
+
+            time_Thread = Thread(target=timeout, args=(time, clientsock))
+            time_Thread.start()
+
+        connected = True
+        print(ip)
+
+
+def Disconnect(clientsock):
+    global disc
+    disc = True
     global ip
-    global recID
-    global connected
-    ip = packet.yiaddr 
-    recID = packet.xid
-    time = packet.secs
-    print(time)
-    if not connected:
-        time_Thread = Thread(target=timeout, args=(time, clientsock))
-        time_Thread.start()
-    connected = True
-    print(ip)
+    packet = dhcppython.packet.DHCPPacket(op="BOOTREQUEST",
+    htype="ETHERNET",
+    hlen=6,
+    hops=0,
+    xid=recID,
+    secs=0,
+    flags=0,
+    ciaddr=ipaddress.IPv4Address(0),
+    yiaddr=ipaddress.IPv4Address(ip),
+    siaddr=ipaddress.IPv4Address(0),
+    giaddr=ipaddress.IPv4Address(0),
+    chaddr=mac_addr,
+    sname=b'',
+    file=b'',
+    options=dhcppython.options.OptionList([dhcppython.options.options.short_value_to_object(53,"DHCPRELEASE")]))
+    clientsock.sendto(packet.asbytes, ('<broadcast>', 5000)) 
+    timeout_thread.running = False
+    print("Disconnected")
 
 
 
@@ -93,6 +133,10 @@ def main():
     clientsock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     clientsock.bind(('',4020))
     send_DHCPDisc(clientsock)
+    time.sleep(4)
+    lock.acquire()
+    #Disconnect(clientsock)
+    lock.release()
 
 if __name__ == '__main__':
     main()
