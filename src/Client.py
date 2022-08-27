@@ -2,9 +2,22 @@ import ipaddress
 import scapy
 import socket
 import dhcppython
-
+import time
+from threading import Thread, Lock
 mac_addr = 'AB:CD:BE:EF:C0:74'
 ip = ''
+recID = ''
+connected = False
+
+def timeout(lease_time, clientsock):
+    while True:
+        print("thread started")
+        time.sleep(lease_time)
+        print("slept")
+        print(ip)
+        send_Req(ip,recID,clientsock)
+        print("renewed")
+
 
 def send_DHCPDisc(clientsock):
 
@@ -19,10 +32,18 @@ def offer_wait(clientsock):
     dhcp_type = packet.options.as_dict()['dhcp_message_type']
 
     if packet.op == 'BOOTREPLY' and dhcp_type == 'DHCPOFFER' :
+
         offer_ip = packet.yiaddr
         rec_ID = packet.xid
-        if offer_ip != ipaddress.IPv4Address(0):
+
+        if offer_ip != ipaddress.IPv4Address(0) and offer_ip != ipaddress.IPv4Address(1):
             send_Req(offer_ip, rec_ID, clientsock)
+
+        elif offer_ip == ipaddress.IPv4Address(0):
+            print('DHCP server has too many devices')
+
+        else:
+            print('Device already assigned local IP')
 
 def send_Req(offer_ip, rec_ID,clientsock):
 
@@ -42,13 +63,26 @@ def send_Req(offer_ip, rec_ID,clientsock):
     file=b'',
     options=dhcppython.options.OptionList([dhcppython.options.options.short_value_to_object(53, "DHCPREQUEST")]))
     clientsock.sendto(packet.asbytes, ('<broadcast>', 5000))
+    print('reached')
     connect(clientsock)
 
 # Add if condition
 def connect(clientsock):
+    print("c0nnect")
     recv_packet, addr = clientsock.recvfrom(1024)
+    print("c0nnect2")
     packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
-    ip = packet.yiaddr
+    global ip
+    global recID
+    global connected
+    ip = packet.yiaddr 
+    recID = packet.xid
+    time = packet.secs
+    print(time)
+    if not connected:
+        time_Thread = Thread(target=timeout, args=(time, clientsock))
+        time_Thread.start()
+    connected = True
     print(ip)
 
 
