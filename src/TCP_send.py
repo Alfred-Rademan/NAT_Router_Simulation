@@ -20,6 +20,6 @@ def tcp_rec(rec_socket):
 
 def create_socket(HOST,PORT):
         s = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+        print("%d")
         s.connect((HOST, PORT))
-        print("worked")
         return s

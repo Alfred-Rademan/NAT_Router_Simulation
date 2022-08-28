@@ -1,3 +1,4 @@
+import atexit
 from concurrent.futures import thread
 import ipaddress
 from multiprocessing.connection import wait
@@ -7,6 +8,9 @@ from time import sleep
 import scapy
 import socket
 import dhcppython
+import time
+from threading import Thread, Lock, current_thread
+
 
 from TCP_send import create_socket, tcp_rec, tcp_send
 
@@ -14,6 +18,27 @@ mac_addr = 'AB:CD:BE:EF:C0:74'
 ip = '10.0.0.3'
 tcp_host = '127.0.0.1'
 tcp_port = 1666
+recID = ''
+connected = False
+timeout_thread = None
+lock = Lock()
+disc = False
+
+def timeout(lease_time, clientsock):
+    global timeout_thread
+    timeout_thread = current_thread()
+
+    while getattr(timeout_thread,"running",True):
+        
+        print("thread started")
+        time.sleep(lease_time)
+        print("slept")
+        print(ip)
+        lock.acquire()
+        send_Req(ip,recID,clientsock)
+        lock.release()
+        
+
 def send_DHCPDisc(clientsock):
 
     dhcp_packet = dhcppython.packet.DHCPPacket.Discover(mac_addr)
@@ -25,12 +50,21 @@ def offer_wait(clientsock):
     recv_packet, addr = clientsock.recvfrom(1024)
     packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
     dhcp_type = packet.options.as_dict()['dhcp_message_type']
-
+    print("here77")
     if packet.op == 'BOOTREPLY' and dhcp_type == 'DHCPOFFER' :
+
         offer_ip = packet.yiaddr
         rec_ID = packet.xid
-        if offer_ip != ipaddress.IPv4Address(0):
+
+        if offer_ip != ipaddress.IPv4Address(0) and offer_ip != ipaddress.IPv4Address(1):
             send_Req(offer_ip, rec_ID, clientsock)
+        
+
+        elif offer_ip == ipaddress.IPv4Address(0):
+            print('DHCP server has too many devices')
+
+        else:
+            print('Device already assigned local IP')
 
 def send_Req(offer_ip, rec_ID,clientsock):
 
@@ -50,14 +84,32 @@ def send_Req(offer_ip, rec_ID,clientsock):
     file=b'',
     options=dhcppython.options.OptionList([dhcppython.options.options.short_value_to_object(53, "DHCPREQUEST")]))
     clientsock.sendto(packet.asbytes, ('<broadcast>', 5000))
+    print('reached')
     connect(clientsock)
 
 # Add if condition
 def connect(clientsock):
-    recv_packet, addr = clientsock.recvfrom(1024)
-    packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
-    ip = packet.yiaddr
-    print(ip)
+
+    print("c0nnect")
+    if not disc:
+        recv_packet, addr = clientsock.recvfrom(1024)
+        print("c0nnect2")
+        packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
+        global ip
+        global recID
+        global connected
+        ip = packet.yiaddr 
+        recID = packet.xid
+        time = packet.secs
+        print(time)
+
+        if not connected:
+
+            time_Thread = Thread(target=timeout, args=(time, clientsock))
+            time_Thread.start()
+
+        connected = True
+        print(ip)
 
 def tcp_sender(s):
     user_input = "start"
@@ -65,6 +117,32 @@ def tcp_sender(s):
         user_input = input("Some input please: ")
         user_ip = input("Some input ip: ")
         tcp_send(s,user_input,ip,user_ip.strip())
+        
+
+def Disconnect(clientsock):
+    global disc
+    disc = True
+    global ip
+    packet = dhcppython.packet.DHCPPacket(op="BOOTREQUEST",
+    htype="ETHERNET",
+    hlen=6,
+    hops=0,
+    xid=recID,
+    secs=0,
+    flags=0,
+    ciaddr=ipaddress.IPv4Address(0),
+    yiaddr=ipaddress.IPv4Address(ip),
+    siaddr=ipaddress.IPv4Address(0),
+    giaddr=ipaddress.IPv4Address(0),
+    chaddr=mac_addr,
+    sname=b'',
+    file=b'',
+    options=dhcppython.options.OptionList([dhcppython.options.options.short_value_to_object(53,"DHCPRELEASE")]))
+    clientsock.sendto(packet.asbytes, ('<broadcast>', 5000)) 
+    timeout_thread.running = False
+    print("Disconnected")
+
+
 
 def main():
     clientsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -72,6 +150,10 @@ def main():
     clientsock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     clientsock.bind(('',4020))
     send_DHCPDisc(clientsock)
+    time.sleep(4)
+    lock.acquire()
+    #Disconnect(clientsock)
+    lock.release()
     connected = FALSE
     i = 0
     s = socket.socket()
@@ -80,9 +162,9 @@ def main():
             s = create_socket("",tcp_port)
             connected = TRUE
 
-        except:
-            i = i +1
-            print("An exception occurred %s" , i)
+        except socket.error as e:
+            print(str(e))
+            
     sender = threading.Thread(target = tcp_sender(s),args= (s))
     sender.start()
     while True:
@@ -94,3 +176,4 @@ def main():
 if __name__ == '__main__':
     main()
 
+atexit.register(Disconnect)
