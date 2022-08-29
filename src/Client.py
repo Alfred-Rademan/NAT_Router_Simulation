@@ -13,6 +13,7 @@ import dhcppython
 import time
 import random
 from threading import Thread, Lock, current_thread
+from Ip_simulator import gen_ip, gen_mac
 
 
 from TCP_send import create_socket, tcp_rec, tcp_send, tcp_send_try
@@ -197,6 +198,11 @@ def main():
     lock.acquire()
     #Disconnect(clientsock)
     lock.release()
+    global cust_IP
+    global mac_addr 
+    mac_addr = gen_mac()
+    cust_IP = gen_ip()
+    
     connected = FALSE
     i = 0
     s = socket.socket()
