@@ -168,17 +168,19 @@ def icmp_recieve(clientsock):
     icmp_thread = current_thread()
     global ip
     while getattr(icmp_thread,"running",True):
-        
-        icmp_packet, addr = clientsock.recvfrom(1024)
-        icmp_dict = json.loads(icmp_packet.decode('utf-8'))
-        print(icmp_dict)
-        if (icmp_dict['first_send'] == True):
-            #icmp_dict['first_send'] = False
-            icmp_dict["send_IP"] = icmp_dict['ip']
-            #icmp_dict['ip'] = ip
-            icmp_send(clientsock,icmp_dict['send_IP'],addr[1],False)
-        else:
-            print("Its back")
+        try:
+            icmp_packet, addr = clientsock.recvfrom(1024)
+            icmp_dict = json.loads(icmp_packet.decode('utf-8'))
+            print(icmp_dict)
+            if (icmp_dict['first_send'] == True):
+                #icmp_dict['first_send'] = False
+                icmp_dict["send_IP"] = icmp_dict['ip']
+                #icmp_dict['ip'] = ip
+                icmp_send(clientsock,icmp_dict['send_IP'],addr[1],False)
+            else:
+                print("Its back")
+        except:
+            print("DHCP")
 
 def main():
     clientsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
