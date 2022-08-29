@@ -109,6 +109,8 @@ def connect(clientsock):
         print(time)
 
         if not connected:
+            icmp_listener = Thread(target=icmp_recieve, args=(clientsock,))
+            icmp_listener.start()
             time_Thread = Thread(target=timeout, args=(time, clientsock))
             time_Thread.start()
 
@@ -152,7 +154,7 @@ def icmp_send(clientsock,sendTo, addr, first_send):
     id = random.getrandbits(5)
 
     icmp_packet = {
-        "ip" : ip,
+        "ip" : str(ip),
         "send_IP" : sendTo,
         "time_stamp" : time_stamp,
         "id" : id,
@@ -166,12 +168,15 @@ def icmp_recieve(clientsock):
     icmp_thread = current_thread()
     global ip
     while getattr(icmp_thread,"running",True):
+        
         icmp_packet, addr = clientsock.recvfrom(1024)
-        if (icmp_packet['first_send'] == True):
-            icmp_packet['first_send'] = False
-            icmp_packet["send_IP"] = icmp_packet['ip']
-            icmp_packet['ip'] = ip
-            icmp_send(clientsock,addr)
+        icmp_dict = json.loads(icmp_packet.decode('utf-8'))
+        print(icmp_dict)
+        if (icmp_dict['first_send'] == True):
+            #icmp_dict['first_send'] = False
+            icmp_dict["send_IP"] = icmp_dict['ip']
+            #icmp_dict['ip'] = ip
+            icmp_send(clientsock,icmp_dict['send_IP'],addr[1],False)
         else:
             print("Its back")
 
