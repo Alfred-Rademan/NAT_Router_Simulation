@@ -77,7 +77,7 @@ def icmp_handler(server, icmp_package):
     addr = list(nat_table.keys())[list(nat_table.values()).index(ipaddress.IPv4Address(icmp_package['send_IP']))]
     print(addr)
     icmp_tosend = str.encode(json.dumps(icmp_package))
-    #server.sendto(icmp_tosend, )
+    server.sendto(icmp_tosend, addr)
 
 
     
