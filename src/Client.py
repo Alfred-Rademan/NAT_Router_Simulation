@@ -12,12 +12,13 @@ import time
 from threading import Thread, Lock, current_thread
 
 
-from TCP_send import create_socket, tcp_rec, tcp_send
+from TCP_send import create_socket, tcp_rec, tcp_send, tcp_send_try
 
 mac_addr = 'AB:CD:BE:EF:C0:74'
 ip = '10.0.0.3'
 tcp_host = '127.0.0.1'
 tcp_port = 1666
+tcp_sender_port = 8081
 recID = ''
 connected = False
 timeout_thread = None
@@ -113,10 +114,11 @@ def connect(clientsock):
 
 def tcp_sender(s):
     user_input = "start"
+    global mac_addr
     while user_input.strip() != "/e":
         user_input = input("Some input please: ")
         user_ip = input("Some input ip: ")
-        tcp_send(s,user_input,ip,user_ip.strip())
+        tcp_send_try(s,user_input,ip,user_ip.strip(),mac_addr,tcp_port,tcp_sender_port)
         
 
 def Disconnect(clientsock):
@@ -165,11 +167,14 @@ def main():
         except socket.error as e:
             print(str(e))
             
-    sender = threading.Thread(target = tcp_sender(s),args= (s))
+    sender = threading.Thread(target = tcp_sender,args= [s])
     sender.start()
+    print("here")
     while True:
-        data = tcp_rec()
-        print(data)
+        data = tcp_rec(s)
+        data_1 = data[16:].decode("utf-8")
+        
+        print(data_1)
 
     
 

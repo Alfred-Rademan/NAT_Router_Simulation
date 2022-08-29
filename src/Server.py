@@ -2,12 +2,13 @@ import atexit
 from concurrent.futures import thread
 from dataclasses import dataclass
 import ipaddress
+from itertools import count
 import queue
 from re import T
 from time import sleep
 
 from traceback import print_list
-from TCP_send import tcp_rec, tcp_send
+from TCP_send import create_socket, tcp_rec, tcp_send, tcp_switch_send
 import scapy
 import socket
 import dhcppython
@@ -21,10 +22,13 @@ ip_pool = []
 ip_assigned = []
 assigned_table = {}
 nat_table = {}
+ex_nat_table = {}
+ex_queue_table = {}
 queue_messages = []
 lock = Lock()
 leaseTime = 300
-count_t = 0 
+count_t = 0
+ip_natbox = "127.0.0.1"
 def diconnect(packet, addr):
     client_mac = packet.chaddr
     client_ip = packet.yiaddr
@@ -57,7 +61,6 @@ def recieve_DHCPConnect(server:socket):
 
         elif packet.op == 'BOOTREQUEST' and dhcp_type == 'DHCPDISCOVER':
             handle_Connect(packet,server)
-            print("hesdre")
 
                     
 
@@ -68,7 +71,7 @@ def connect(server, reconnect, pre_pack):
     print(reconnect)
 
     if (not reconnect) :
-
+        global count_t
         print('reached connect')
         recv_packet, addr = server.recvfrom(1024)
         print("rec Pack")
@@ -81,9 +84,11 @@ def connect(server, reconnect, pre_pack):
             nat_table[addr] = packet.yiaddr
             connect_packet = dhcppython.packet.DHCPPacket.Ack(mac_addr,leaseTime,packet.xid,packet.yiaddr)
             server.sendto(connect_packet.asbytes,('<broadcast>',4020))
-            client_list_thread = threading.Thread(target=client_listener,args=(count_t))
+            client_list_thread = threading.Thread(target=client_listener,args=[count_t])
             client_list_thread.start()
-            count_t = count_t +1
+            count_t = count_t+1
+            
+
 
         
 
@@ -132,36 +137,95 @@ def handle_Connect(packet, server):
             ipaddress.IPv4Address(offered_IP))
             server.sendto(offer_packet.asbytes,('<broadcast>', 4020))
             connect(server,False,offer_packet)
+
+def client_sender(con,name):
+    while True:
         
-        
+        if(len(queue_messages[name])>0):
+            
+            lock.acquire()
+            data = queue_messages[name].pop()
+            tcp_switch_send(con,data)
+            lock.release()
+
         
 def client_listener(name):
     conn,addr = client_creator()
+    sender_thread = threading.Thread(target=client_sender,args=[conn,name])
+    sender_thread.start()
+    mac = ""
+    con_port = 767 
     print("Connected to %s", addr)
     while True:
         data = tcp_rec(conn)
         print("ahhh")
         if data != None:
-            print(data[:8].decode('utf-8'))
-            end_ip = data[8:16].decode('utf-8')
+            print(data[:17].decode('utf-8'))
+            start_ip = data[17:26].decode('utf-8')
+            print(start_ip)
+            port_sender = int.from_bytes(data[27:29],"big")
+            print(port_sender)
+            end_ip = data[29:38].decode('utf-8')
             print(end_ip)
+            port_rec = int.from_bytes(data[39:42],"big")
+            print(port_rec)
             
             if(end_ip == '10.0.0.4'):
                 print("here")
                 lock.acquire()
                 que = queue_messages[1]
                 que.append(data)
+                print(len(que))
                 lock.release()
+            elif( (start_ip+str(port_sender)) in ex_nat_table ):
+                data2 = bytes(mac_addr,"utf-8") + bytes(ip_natbox,"utf-8")+data[27:29]+data[29:]
+                ex_queue_table[start_ip+str(port_sender)].append(data2)
+                print("exists")
+            else:
+                ex_nat_table[start_ip+str(port_sender)] = end_ip+str(port_rec)
+                if( (start_ip+str(port_sender)) in ex_nat_table ):
+                        print("truuuue")
+                ex_queue_table[start_ip+str(port_sender)] = deque()
+                external_sock(end_ip,port_rec,start_ip,port_sender)
+                data2 = bytes(mac_addr,"utf-8") + bytes(ip_natbox,"utf-8")+data[27:29]+data[29:38]+data[39:42]+data[42:]
+                ex_queue_table[start_ip+str(port_sender)].append(data2)
+                print("bruh")
+                
             print(str(data))
         if str(data.strip()) == 'b\'\'' :
             break
     atexit.register(close_con,conn)
+
+def external_sock(end_ip,port_rec,start_ip,port_sender):
+    sock = socket.socket()
+    sock = create_socket(end_ip,port_rec)
+    sender_thread =  threading.Thread(target = ex_sender,args = [start_ip,port_sender,sock] )
+    sender_thread.start()
+    
+def ex_rec(conn,end,port_rec):
+    while True:
+        data = tcp_rec(conn)
+    
+    
+def ex_sender(start_ip, port_sender,sock):
+    while True:
+        if len(ex_queue_table[start_ip+str(port_sender)])>0:
+            data = ex_queue_table[start_ip+str(port_sender)].pop()
+            print(data)
+            tcp_switch_send(sock,data)
+
+def ex_send(sock):
+    while True:
+        sock.send()
+
 
 def close_con(s):
     s.close()
     thread.join()
 def close():
     tcp_server.close()
+
+
 
 def client_creator():
     lock.acquire()
