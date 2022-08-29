@@ -77,7 +77,7 @@ def icmp_handler(server, icmp_package):
     addr = list(nat_table.keys())[list(nat_table.values()).index(ipaddress.IPv4Address(icmp_package['send_IP']))]
     print(addr)
     icmp_tosend = str.encode(json.dumps(icmp_package))
-    server.sendto(icmp_tosend, addr)
+    server.sendto(icmp_tosend, ('<broadcast>',addr[1]))
 
 
     
@@ -94,12 +94,14 @@ def connect(server, reconnect, pre_pack):
         recv_packet, addr = server.recvfrom(1024)
         print("rec Pack")
         packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
+        cust_IP = packet.ciaddr
+        print(cust_IP)
         dhcp_type = packet.options.as_dict()['dhcp_message_type']
         print(reconnect)
         if (packet.op == 'BOOTREQUEST' and dhcp_type == 'DHCPREQUEST'):
             client_mac = packet.chaddr
-            assigned_table[client_mac] = packet.yiaddr
-            nat_table[addr] = packet.yiaddr
+            assigned_table[client_mac] = cust_IP
+            nat_table[(cust_IP,addr[1])] = packet.yiaddr
             connect_packet = dhcppython.packet.DHCPPacket.Ack(mac_addr,leaseTime,packet.xid,packet.yiaddr)
             server.sendto(connect_packet.asbytes,('<broadcast>',4020))
             client_list_thread = threading.Thread(target=client_listener,args=[count_t])
@@ -112,7 +114,8 @@ def connect(server, reconnect, pre_pack):
 
 
     else:
-        connect_packet = dhcppython.packet.DHCPPacket.Ack(mac_addr,leaseTime,pre_pack.xid,pre_pack.yiaddr)
+        connect_packet = dhcppython.packet.DHCPPacket.Ack(mac_addr,leaseTime,pre_pack.xid,
+        ipaddress.IPv4Address(server.gethostbyname(server.gethostname())))
         server.sendto(connect_packet.asbytes,('<broadcast>',4020))
         client_list_thread = threading.Thread(target=client_listener,args=("1"))
         client_list_thread.start()

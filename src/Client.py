@@ -19,6 +19,7 @@ from TCP_send import create_socket, tcp_rec, tcp_send, tcp_send_try
 
 mac_addr = 'AB:CD:BE:EF:C0:74'
 ip = '10.0.0.3'
+server_ip = ''
 tcp_host = '127.0.0.1'
 tcp_port = 1666
 tcp_sender_port = 8081
@@ -27,6 +28,7 @@ connected = False
 timeout_thread = None
 lock = Lock()
 disc = False
+cust_IP = "234.23.34.0"
 
 def timeout(lease_time, clientsock):
     global timeout_thread
@@ -58,6 +60,7 @@ def offer_wait(clientsock):
     if packet.op == 'BOOTREPLY' and dhcp_type == 'DHCPOFFER' :
 
         offer_ip = packet.yiaddr
+        ip = offer_ip
         rec_ID = packet.xid
 
         if offer_ip != ipaddress.IPv4Address(0) and offer_ip != ipaddress.IPv4Address(1):
@@ -79,7 +82,7 @@ def send_Req(offer_ip, rec_ID,clientsock):
     xid=rec_ID,
     secs=0,
     flags=0,
-    ciaddr=ipaddress.IPv4Address(0),
+    ciaddr=ipaddress.IPv4Address(cust_IP),
     yiaddr=ipaddress.IPv4Address(offer_ip),
     siaddr=ipaddress.IPv4Address(0),
     giaddr=ipaddress.IPv4Address(0),
@@ -97,13 +100,16 @@ def connect(clientsock):
     print("c0nnect")
     if not disc:
         recv_packet, addr = clientsock.recvfrom(1024)
-        icmp_send(clientsock,'10.0.0.3',addr[1],True)
+        icmp_send(clientsock,"10.0.0.3",addr[1],True)
         print("c0nnect2")
         packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
         global ip
+        global server_ip
         global recID
         global connected
-        ip = packet.yiaddr 
+        server_ip = packet.yiaddr
+        print(server_ip)
+        #ip = packet.yiaddr 
         recID = packet.xid
         time = packet.secs
         print(time)

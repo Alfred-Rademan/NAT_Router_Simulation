@@ -33,6 +33,7 @@ def tcp_rec(rec_socket):
 
 
 def create_socket(HOST,PORT):
-        s = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+        #HOST = "25.70.125.232"
+        s = socket.socket(socket.AF_INET,socket.SOCK_STREAM, socket.IPPROTO_TCP)
         s.connect((HOST, PORT))
         return s
