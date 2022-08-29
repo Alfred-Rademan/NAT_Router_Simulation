@@ -4,9 +4,10 @@ from dataclasses import dataclass
 import ipaddress
 from itertools import count
 import queue
+import json
 from re import T
 from time import sleep
-
+import time
 from traceback import print_list
 from TCP_send import create_socket, tcp_rec, tcp_send, tcp_switch_send
 import scapy
@@ -28,8 +29,9 @@ queue_messages = []
 lock = Lock()
 leaseTime = 300
 count_t = 0
+
 ip_natbox = "127.0.0.1"
-def diconnect(packet, addr):
+def disconnect(packet, addr):
     client_mac = packet.chaddr
     client_ip = packet.yiaddr
     ip_assigned.remove(str(client_ip))
@@ -37,6 +39,7 @@ def diconnect(packet, addr):
     nat_table.pop(addr)
     print(nat_table)
     print("disc")
+
 ip_socket_table = {}
 tcp_server = socket.socket()
 
@@ -48,21 +51,36 @@ def recieve_DHCPConnect(server:socket):
     while True:
         reconnect = False
         recv_packet, addr = server.recvfrom(1024)
-        packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
-        dhcp_type = packet.options.as_dict()['dhcp_message_type']
-        if dhcp_type == "DHCPRELEASE" :
-            diconnect(packet,addr)
+        try :
+           icmp_packet = json.loads(recv_packet.decode('utf-8'))
+           icmp_handler(server,icmp_packet)
+        except:
+            print("no")
+            packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)   
+            dhcp_type = packet.options.as_dict()['dhcp_message_type']
+            if dhcp_type == "DHCPRELEASE" :
+                disconnect(packet,addr)
 
-         # elif addr in nat_table:
+             # elif addr in nat_table:
 
-            #  reconnect = True
-             # print("renew")
-             # connect(server, reconnect, packet)
+                #  reconnect = True
+                 # print("renew")
+                 # connect(server, reconnect, packet)
 
-        elif packet.op == 'BOOTREQUEST' and dhcp_type == 'DHCPDISCOVER':
-            handle_Connect(packet,server)
+            elif packet.op == 'BOOTREQUEST' and dhcp_type == 'DHCPDISCOVER':
+                handle_Connect(packet,server)
 
                     
+
+def icmp_handler(server, icmp_package):
+    print(nat_table)
+    addr = list(nat_table.keys())[list(nat_table.values()).index(ipaddress.IPv4Address(icmp_package['send_IP']))]
+    print(addr)
+    icmp_tosend = str.encode(json.dumps(icmp_package))
+    #server.sendto(icmp_tosend, )
+
+
+    
 
 
             
@@ -133,6 +151,7 @@ def handle_Connect(packet, server):
             server.sendto(offer_packet.asbytes,('<broadcast>', 4020))
 
         else:
+
             offer_packet = dhcppython.packet.DHCPPacket.Offer(mac_addr,0,rec_ID,
             ipaddress.IPv4Address(offered_IP))
             server.sendto(offer_packet.asbytes,('<broadcast>', 4020))
@@ -236,6 +255,7 @@ def client_creator():
 
 
     return conn,addr
+
 
 def main():
     tcp_host = '127.0.0.1'

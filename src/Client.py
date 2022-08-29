@@ -3,12 +3,15 @@ from concurrent.futures import thread
 import ipaddress
 from multiprocessing.connection import wait
 from pickle import FALSE, TRUE
+from random import random
 import threading
 from time import sleep
+import json
 import scapy
 import socket
 import dhcppython
 import time
+import random
 from threading import Thread, Lock, current_thread
 
 
@@ -94,6 +97,7 @@ def connect(clientsock):
     print("c0nnect")
     if not disc:
         recv_packet, addr = clientsock.recvfrom(1024)
+        icmp_send(clientsock,'10.0.0.3',addr[1],True)
         print("c0nnect2")
         packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
         global ip
@@ -105,7 +109,6 @@ def connect(clientsock):
         print(time)
 
         if not connected:
-
             time_Thread = Thread(target=timeout, args=(time, clientsock))
             time_Thread.start()
 
@@ -144,7 +147,32 @@ def Disconnect(clientsock):
     timeout_thread.running = False
     print("Disconnected")
 
+def icmp_send(clientsock,sendTo, addr, first_send):
+    time_stamp = time.time()
+    id = random.getrandbits(5)
 
+    icmp_packet = {
+        "ip" : ip,
+        "send_IP" : sendTo,
+        "time_stamp" : time_stamp,
+        "id" : id,
+        "first_send": first_send
+    }
+
+    icmp_toSend = str.encode(json.dumps(icmp_packet))
+    clientsock.sendto(icmp_toSend,('<broadcast>', addr))
+
+def icmp_recieve(clientsock):
+    icmp_thread = current_thread()
+    global ip
+    while getattr(icmp_thread,"running",True):
+        icmp_packet, addr = clientsock.recvfrom(1024)
+        if (icmp_packet['first_send'] == True):
+            icmp_packet['first_send'] = False
+            icmp_packet["send_IP"] = icmp_packet['ip']
+            icmp_packet['ip'] = ip
+            icmp_send(clientsock,)
+    
 
 def main():
     clientsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -152,7 +180,6 @@ def main():
     clientsock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     clientsock.bind(('',4020))
     send_DHCPDisc(clientsock)
-    time.sleep(4)
     lock.acquire()
     #Disconnect(clientsock)
     lock.release()
