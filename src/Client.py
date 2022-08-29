@@ -155,7 +155,7 @@ def icmp_send(clientsock,sendTo, addr, first_send):
 
     icmp_packet = {
         "ip" : str(ip),
-        "send_IP" : sendTo,
+        "send_IP" : str(sendTo),
         "time_stamp" : time_stamp,
         "id" : id,
         "first_send": first_send
