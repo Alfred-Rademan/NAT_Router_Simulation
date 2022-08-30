@@ -55,21 +55,23 @@ def recieve_DHCPConnect(server:socket):
            icmp_packet = json.loads(recv_packet.decode('utf-8'))
            icmp_handler(server,icmp_packet)
         except:
-            print("no")
-            packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)   
-            dhcp_type = packet.options.as_dict()['dhcp_message_type']
-            if dhcp_type == "DHCPRELEASE" :
-                disconnect(packet,addr)
+            try:
+                print("no")
+                packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)   
+                dhcp_type = packet.options.as_dict()['dhcp_message_type']
+                if dhcp_type == "DHCPRELEASE" :
+                    disconnect(packet,addr)
 
-             # elif addr in nat_table:
+                 # elif addr in nat_table:
 
-                #  reconnect = True
-                 # print("renew")
-                 # connect(server, reconnect, packet)
+                    #  reconnect = True
+                     # print("renew")
+                     # connect(server, reconnect, packet)
 
-            elif packet.op == 'BOOTREQUEST' and dhcp_type == 'DHCPDISCOVER':
-                handle_Connect(packet,server)
-
+                elif packet.op == 'BOOTREQUEST' and dhcp_type == 'DHCPDISCOVER':
+                    handle_Connect(packet,server)
+            except:
+                print("The IP does not exist")
                     
 
 def icmp_handler(server, icmp_package):
