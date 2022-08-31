@@ -42,7 +42,7 @@ def main():
     sender.start()
     while True:
         data = tcp_rec(conn)
-        data_1 = data[42:].decode("utf-8")
+        data_1 = data[41:].decode("utf-8")
         print(data_1)
 
 def disconnect():

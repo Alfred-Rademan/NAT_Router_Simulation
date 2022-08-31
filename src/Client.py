@@ -4,9 +4,11 @@ import ipaddress
 from multiprocessing.connection import wait
 from pickle import FALSE, TRUE
 from random import random
+from this import d
 import threading
 from time import sleep
 import json
+#from turtle import st
 import scapy
 import socket
 import dhcppython
@@ -16,7 +18,7 @@ from threading import Thread, Lock, current_thread
 from Ip_simulator import gen_ip, gen_mac
 
 
-from TCP_send import create_socket, tcp_rec, tcp_send, tcp_send_try
+from TCP_send import create_socket, tcp_rec, tcp_send, tcp_send_ack, tcp_send_try
 
 mac_addr = 'AB:CD:BE:EF:C0:74'
 ip = '10.0.0.3'
@@ -24,14 +26,18 @@ server_ip = ''
 tcp_host = '127.0.0.1'
 tcp_port = 1666
 tcp_sender_port = 8081
+host_mc = ''
 recID = ''
 connected = False
 timeout_thread = None
 lock = Lock()
 disc = False
 cust_IP = "234.23.34.0"
+count_packet = 0
+icmp_packet_1 = ""
 
 def timeout(lease_time, clientsock):
+    print (mac_addr)
     global timeout_thread
     timeout_thread = current_thread()
 
@@ -53,13 +59,16 @@ def send_DHCPDisc(clientsock):
     offer_wait(clientsock)
 
 def offer_wait(clientsock):
-
     recv_packet, addr = clientsock.recvfrom(1024)
     packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
     dhcp_type = packet.options.as_dict()['dhcp_message_type']
+    global ip 
+    global host_mc
     print("here77")
     if packet.op == 'BOOTREPLY' and dhcp_type == 'DHCPOFFER' :
-
+        host_mc = packet.chaddr
+        
+        print(host_mc)
         offer_ip = packet.yiaddr
         ip = offer_ip
         rec_ID = packet.xid
@@ -130,7 +139,7 @@ def tcp_sender(s):
     while user_input.strip() != "/e":
         user_input = input("Some input please: ")
         user_ip = input("Some input ip: ")
-        tcp_send_try(s,user_input,ip,user_ip.strip(),mac_addr,tcp_port,tcp_sender_port)
+        print(tcp_send_try(s,user_input,ip,user_ip.strip(),mac_addr,tcp_port,tcp_sender_port))
         
 
 def Disconnect(clientsock):
@@ -167,9 +176,10 @@ def icmp_send(clientsock,sendTo, addr, first_send):
         "id" : id,
         "first_send": first_send
     }
-
     icmp_toSend = str.encode(json.dumps(icmp_packet))
     clientsock.sendto(icmp_toSend,('<broadcast>', addr))
+
+
 
 def icmp_recieve(clientsock):
     icmp_thread = current_thread()
@@ -189,7 +199,16 @@ def icmp_recieve(clientsock):
         except:
             print("DHCP")
 
+def icmp_mess():
+        global icmp_packet_1
+        icmp_dict = json.loads(icmp_packet_1)
+
 def main():
+    global cust_IP
+    global mac_addr 
+    cust_IP = gen_ip()
+    
+    
     clientsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     clientsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     clientsock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -198,10 +217,7 @@ def main():
     lock.acquire()
     #Disconnect(clientsock)
     lock.release()
-    global cust_IP
-    global mac_addr 
-    mac_addr = gen_mac()
-    cust_IP = gen_ip()
+
     
     connected = FALSE
     i = 0
@@ -216,13 +232,39 @@ def main():
             
     sender = threading.Thread(target = tcp_sender,args= [s])
     sender.start()
-    print("here")
+    global count_packet
+    global icmp_packet_1
+    
     while True:
         data = tcp_rec(s)
-        data_1 = data[16:].decode("utf-8")
-        
-        print(data_1)
+        try:
+            check_1 = data.decode("utf-8")
+            icmp_packet_1 =  check_1
+            if("time_stamp"in check_1):
+    
+                icmp_mess()
+                continue
+        except Exception as e:
+            d = 4
+        data_1 = data[41:].decode("utf-8")
+        start_ip = data[17:26].decode('utf-8')
+        port_sender = int.from_bytes(data[26:29],"big")
+        end_ip =  data[29:38].decode('utf-8')
+        port_rec = int.from_bytes(data[39:41],"big")
+        if("time_stamp"in data_1):
+            continue           
+        elif("ck:"in data_1):
+            count_packet = 1 +count_packet
+            print("ack from" + start_ip +"from port :" +end_ip +"packets sent =" +str(count_packet) )
+        else:
+            print(data_1)
+            tcp_send_ack(s,"ack:",start_ip.strip(),end_ip.strip(),mac_addr,data[26:29],data[39:41])
 
+            #
+
+            
+
+        
     
 
 if __name__ == '__main__':

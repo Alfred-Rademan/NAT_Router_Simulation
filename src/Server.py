@@ -5,6 +5,7 @@ import ipaddress
 from itertools import count
 import queue
 import json
+import random
 from re import T
 from time import sleep
 import time
@@ -27,7 +28,7 @@ ex_nat_table = {}
 ex_queue_table = {}
 queue_messages = []
 lock = Lock()
-leaseTime = 300
+leaseTime = 3
 count_t = 0
 
 ip_natbox = "127.0.0.1"
@@ -54,19 +55,23 @@ def recieve_DHCPConnect(server:socket):
         try :
            icmp_packet = json.loads(recv_packet.decode('utf-8'))
            icmp_handler(server,icmp_packet)
+
         except:
+            print("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
             try:
                 print("no")
                 packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)   
                 dhcp_type = packet.options.as_dict()['dhcp_message_type']
+                
+                print(dhcp_type)
                 if dhcp_type == "DHCPRELEASE" :
                     disconnect(packet,addr)
 
-                 # elif addr in nat_table:
-
-                    #  reconnect = True
-                     # print("renew")
-                     # connect(server, reconnect, packet)
+                elif dhcp_type == "DHCPREQUEST":
+                    print("ok i think its working")
+                    reconnect = True
+                    print("renew")
+                    connect(server, reconnect, packet)
 
                 elif packet.op == 'BOOTREQUEST' and dhcp_type == 'DHCPDISCOVER':
                     handle_Connect(packet,server)
@@ -77,10 +82,26 @@ def recieve_DHCPConnect(server:socket):
 def icmp_handler(server, icmp_package):
     print(nat_table)
     addr = list(nat_table.keys())[list(nat_table.values()).index(ipaddress.IPv4Address(icmp_package['send_IP']))]
-    print(addr)
     icmp_tosend = str.encode(json.dumps(icmp_package))
+
     server.sendto(icmp_tosend, ('<broadcast>',addr[1]))
 
+def icmp_handler_ah(conn, ip,sendTo):
+    print(nat_table)
+    time_stamp = time.time()
+    id = random.getrandbits(5)
+    icmp_packet = {
+        "ip" : str(ip),
+        "send_IP" : str(sendTo),
+        "time_stamp" : time_stamp,
+        "id" : id,
+        "first_send": False
+    }
+    icmp_tosend =  bytes(str.encode(json.dumps(icmp_packet)))
+    print(icmp_tosend)
+    lock.acquire()
+    tcp_switch_send(conn,icmp_tosend)
+    lock.release()
 
     
 
@@ -117,7 +138,7 @@ def connect(server, reconnect, pre_pack):
 
     else:
         connect_packet = dhcppython.packet.DHCPPacket.Ack(mac_addr,leaseTime,pre_pack.xid,
-        ipaddress.IPv4Address(server.gethostbyname(server.gethostname())))
+        ipaddress.IPv4Address(socket.gethostbyname(socket.gethostname())))
         server.sendto(connect_packet.asbytes,('<broadcast>',4020))
         client_list_thread = threading.Thread(target=client_listener,args=("1"))
         client_list_thread.start()
@@ -182,22 +203,18 @@ def client_listener(name):
     print("Connected to %s", addr)
     while True:
         data = tcp_rec(conn)
-        print("ahhh")
         if data != None:
-            print(data[:17].decode('utf-8'))
             start_ip = data[17:26].decode('utf-8')
-            print(start_ip)
-            port_sender = int.from_bytes(data[27:29],"big")
-            print(port_sender)
+            port_sender = int.from_bytes(data[26:29],"big")
             end_ip = data[29:38].decode('utf-8')
-            print(end_ip)
-            port_rec = int.from_bytes(data[39:42],"big")
-            print(port_rec)
-            
-            if(end_ip == '10.0.0.4'):
-                print("here")
+            port_rec = int.from_bytes(data[37:41],"big")
+            icmp_handler_ah(conn, start_ip,end_ip)
+            #
+            if( '10.0.0.' in end_ip):
+                i = int(end_ip[7])-3
+                    
                 lock.acquire()
-                que = queue_messages[1]
+                que = queue_messages[i]
                 que.append(data)
                 print(len(que))
                 lock.release()
@@ -207,6 +224,7 @@ def client_listener(name):
                 print("exists")
             else:
                 ex_nat_table[start_ip+str(port_sender)] = end_ip+str(port_rec)
+                ex_nat_table[end_ip+str(port_rec)] = start_ip+str(port_sender)
                 if( (start_ip+str(port_sender)) in ex_nat_table ):
                         print("truuuue")
                 ex_queue_table[start_ip+str(port_sender)] = deque()
@@ -225,10 +243,16 @@ def external_sock(end_ip,port_rec,start_ip,port_sender):
     sock = create_socket(end_ip,port_rec)
     sender_thread =  threading.Thread(target = ex_sender,args = [start_ip,port_sender,sock] )
     sender_thread.start()
+    rec_thread =  threading.Thread(target = ex_rec, args = [sock,start_ip,port_rec])
+    rec_thread.start()
     
-def ex_rec(conn,end,port_rec):
+def ex_rec(conn,start_ip,port_rec):
+    
     while True:
-        data = tcp_rec(conn)
+        data = tcp_rec(conn)            
+        next = int(start_ip[7])-3
+        print(next)
+        queue_messages[next].append(data)
     
     
 def ex_sender(start_ip, port_sender,sock):
