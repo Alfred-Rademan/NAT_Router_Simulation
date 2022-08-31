@@ -33,11 +33,14 @@ count_t = 0
 
 ip_natbox = "127.0.0.1"
 def disconnect(packet, addr):
+    print("disconect")
     client_mac = packet.chaddr
     client_ip = packet.yiaddr
-    ip_assigned.remove(str(client_ip))
+    print(nat_table)
+    print(client_ip)
+    ip_assigned.remove(str(nat_table.get((ipaddress.IPv4Address(client_ip),addr[1]))))
     assigned_table.pop(client_mac)
-    nat_table.pop(addr)
+    nat_table.pop((ipaddress.IPv4Address(client_ip),addr[1]))
     print(nat_table)
     print("disc")
 
@@ -55,7 +58,7 @@ def recieve_DHCPConnect(server:socket):
         try:
             packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)   
             dhcp_type = packet.options.as_dict()['dhcp_message_type']
-
+            print(dhcp_type)
             if dhcp_type == "DHCPRELEASE" :
                 print("Disconecting ")
                 disconnect(packet,addr)
