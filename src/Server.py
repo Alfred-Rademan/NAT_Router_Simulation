@@ -3,6 +3,7 @@ from concurrent.futures import thread
 from dataclasses import dataclass
 import ipaddress
 from itertools import count
+from logging import exception
 import queue
 import json
 import random
@@ -78,8 +79,9 @@ def icmp_handler(server, icmp_package):
 
     server.sendto(icmp_tosend, ('<broadcast>',addr[1]))
 
-def icmp_handler_ah(conn, ip,sendTo):
+def icmp_handler_ah(conn, ip,sendTo,type_1):
     print(nat_table)
+    print(ex_nat_table)
     time_stamp = time.time()
     id = random.getrandbits(5)
     icmp_packet = {
@@ -87,7 +89,8 @@ def icmp_handler_ah(conn, ip,sendTo):
         "send_IP" : str(sendTo),
         "time_stamp" : time_stamp,
         "id" : id,
-        "first_send": False
+        "first_send": False,
+        "type" : type_1
     }
     icmp_tosend =  bytes(str.encode(json.dumps(icmp_packet)))
     lock.acquire()
@@ -189,30 +192,42 @@ def client_listener(name):
     while True:
         data = tcp_rec(conn)
         if data != None:
-            start_ip = data[17:26].decode('utf-8')
-            port_sender = int.from_bytes(data[26:29],"big")
-            end_ip = data[29:38].decode('utf-8')
-            port_rec = int.from_bytes(data[37:41],"big")
-            icmp_handler_ah(conn, start_ip,end_ip)
+            start_ip = ""
+            port_sender = 0
+            end = ""
+            port_rec = 0
+            try :
+                start_ip = data[17:26].decode('utf-8')
+                port_sender = int.from_bytes(data[26:29],"big")
+                end_ip = data[29:38].decode('utf-8')
+                port_rec = int.from_bytes(data[38:42],"big")
+                print(port_rec)
+            except:
+                icmp_handler_ah(conn, "error","error",1)
+                continue
             #
             if( '10.0.0.' in end_ip):
                 i = int(end_ip[7])-3
-                    
-                lock.acquire()
-                que = queue_messages[i]
-                que.append(data)
-                print(len(que))
-                lock.release()
+                if len(ip_assigned) > i+1  :
+                    lock.acquire()
+                    que = queue_messages[i]
+                    que.append(data)
+                    lock.release()
+                else:
+                    icmp_handler_ah(conn, start_ip,end_ip,5)
+                    print("unable to route")
+
             elif( (start_ip+str(port_sender)) in ex_nat_table ):
                 data2 = bytes(mac_addr,"utf-8") + bytes(ip_natbox,"utf-8")+data[27:29]+data[29:]
                 ex_queue_table[start_ip+str(port_sender)].append(data2)
             else:
-                ex_nat_table[start_ip+str(port_sender)] = end_ip+str(port_rec)
-                ex_nat_table[end_ip+str(port_rec)] = start_ip+str(port_sender)
-                ex_queue_table[start_ip+str(port_sender)] = deque()
-                external_sock(end_ip,port_rec,start_ip,port_sender)
-                data2 = bytes(mac_addr,"utf-8") + bytes(ip_natbox,"utf-8")+data[27:29]+data[29:38]+data[39:42]+data[42:]
-                ex_queue_table[start_ip+str(port_sender)].append(data2)
+                    print(port_rec)
+                    ex_nat_table[start_ip+str(port_sender)] = end_ip+str(port_rec)
+                    ex_nat_table[end_ip+str(port_rec)] = start_ip+str(port_sender)
+                    ex_queue_table[start_ip+str(port_sender)] = deque()
+                    external_sock(end_ip,port_rec,start_ip,port_sender)
+                    data2 = bytes(mac_addr,"utf-8") + bytes(ip_natbox,"utf-8")+data[27:29]+data[29:38]+data[39:42]+data[42:]
+                    ex_queue_table[start_ip+str(port_sender)].append(data2)
                 
         if str(data.strip()) == 'b\'\'' :
             break
@@ -229,9 +244,14 @@ def external_sock(end_ip,port_rec,start_ip,port_sender):
 def ex_rec(conn,start_ip,port_rec):
     
     while True:
-        data = tcp_rec(conn)            
+        data = tcp_rec(conn)
+        print(start_ip +"asdsda")      
         next = int(start_ip[7])-3
+        if str(data.strip()) == 'b\'\'' :
+            break
         queue_messages[next].append(data)
+        
+        
     
     
 def ex_sender(start_ip, port_sender,sock):
@@ -250,6 +270,7 @@ def close_con(s):
     thread.join()
 def close():
     tcp_server.close()
+    print("here")
 
 
 

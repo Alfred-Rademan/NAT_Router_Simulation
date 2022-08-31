@@ -141,7 +141,7 @@ def tcp_sender(s):
     while user_input.strip() != "/e":
         user_input = input("Some input please: ")
         user_ip = input("Some input ip: ")
-        print(tcp_send_try(s,user_input,ip,user_ip.strip(),mac_addr,tcp_port,tcp_sender_port))
+        tcp_send_try(s,user_input,ip,user_ip.strip(),mac_addr,tcp_port,tcp_sender_port)
         
 
 def Disconnect(clientsock):
@@ -205,12 +205,18 @@ def icmp_recieve(clientsock):
 def icmp_mess():
         global icmp_packet_1
         icmp_dict = json.loads(icmp_packet_1)
+        print("test")
+        if(icmp_dict["type"] == 1):
+            print("Unable to find host dst")
+        elif (icmp_dict["type"] == 5):
+            print("Unable to route")
+
 
 def main():
     global cust_IP
     global mac_addr 
     cust_IP = gen_ip()
-    
+    mac_addr = gen_mac()
     
     clientsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     clientsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -249,14 +255,14 @@ def main():
                 continue
         except Exception as e:
             d = 4
-        data_1 = data[41:].decode("utf-8")
+        data_1 = data[42:].decode("utf-8")
         start_ip = data[17:26].decode('utf-8')
         port_sender = int.from_bytes(data[26:29],"big")
         end_ip =  data[29:38].decode('utf-8')
         port_rec = int.from_bytes(data[39:41],"big")
         if("time_stamp"in data_1):
             continue           
-        elif("ck:"in data_1):
+        elif("k:"in data_1):
             count_packet = 1 +count_packet
             print("ack from" + start_ip +"from port :" +end_ip +"packets sent =" +str(count_packet) )
         else:

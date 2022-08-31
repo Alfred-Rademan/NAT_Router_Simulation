@@ -11,13 +11,9 @@ def gen_ip():
 def gen_mac():
     l = ""
     for i in range (0,12 ):
-        l = l+random.choice(string.ascii_uppercase + string.digits)
+        l = l+str(hex(random.randint(0,15))[2:]).upper()
         if(i % 2 == 1 and i != 11):
-            l = l +'.'
-            
+            l = l +':'
+    print(l)
     return l
     
-
-for i in range(0,200):
-    print(gen_ip())
-    print(gen_mac())

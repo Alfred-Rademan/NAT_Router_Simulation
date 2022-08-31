@@ -12,7 +12,7 @@ import time
 from threading import Thread, Lock, current_thread
 
 
-from TCP_send import create_socket, tcp_rec, tcp_send
+from TCP_send import create_socket, tcp_rec, tcp_send, tcp_send_try
 s = socket.socket()
 mac_addr = 'AB:CD:BE:EF:C0:74'
 ip = '10.0.0.3'
@@ -25,7 +25,7 @@ def tcp_sender(s):
     while user_input.strip() != "/e":
         user_input = input("Some input please: ")
         user_ip = input("Some input ip: ")
-        tcp_send(s,user_input,ip,user_ip.strip())
+        tcp_send_try(s,user_input,ip,user_ip.strip(),mac_addr,tcp_port,tcp_port)
 
 
 
