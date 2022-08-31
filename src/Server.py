@@ -130,11 +130,6 @@ def connect(server, reconnect, pre_pack):
             client_list_thread = threading.Thread(target=client_listener,args=[count_t])
             client_list_thread.start()
             count_t = count_t+1
-            
-
-
-        
-
 
     else:
         connect_packet = dhcppython.packet.DHCPPacket.Ack(mac_addr,leaseTime,pre_pack.xid,

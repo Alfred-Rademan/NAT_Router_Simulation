@@ -108,9 +108,10 @@ def send_Req(offer_ip, rec_ID,clientsock):
 def connect(clientsock):
 
     print("c0nnect")
+    print(disc)
     if not disc:
         recv_packet, addr = clientsock.recvfrom(1024)
-        icmp_send(clientsock,"10.0.0.3",addr[1],True)
+       # icmp_send(clientsock,"10.0.0.3",addr[1],True)
         print("c0nnect2")
         packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
         global ip
@@ -125,8 +126,8 @@ def connect(clientsock):
         print(time)
 
         if not connected:
-            icmp_listener = Thread(target=icmp_recieve, args=(clientsock,))
-            icmp_listener.start()
+           # icmp_listener = Thread(target=icmp_recieve, args=(clientsock,))
+           # icmp_listener.start()
             time_Thread = Thread(target=timeout, args=(time, clientsock))
             time_Thread.start()
 
