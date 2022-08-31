@@ -4,6 +4,7 @@ import ipaddress
 from multiprocessing.connection import wait
 from pickle import FALSE, TRUE
 from random import random
+import sys
 from this import d
 import threading
 from time import sleep
@@ -35,17 +36,14 @@ disc = False
 cust_IP = "234.23.34.0"
 count_packet = 0
 icmp_packet_1 = ""
-
+clientsock = None
 def timeout(lease_time, clientsock):
-    print (mac_addr)
     global timeout_thread
     timeout_thread = current_thread()
 
     while getattr(timeout_thread,"running",True):
         
-        print("thread started")
         time.sleep(lease_time)
-        print("slept")
         print(ip)
         lock.acquire()
         send_Req(ip,recID,clientsock)
@@ -53,23 +51,19 @@ def timeout(lease_time, clientsock):
         
 
 def send_DHCPDisc(clientsock):
-    print("disc")
     dhcp_packet = dhcppython.packet.DHCPPacket.Discover(mac_addr)
     clientsock.sendto(dhcp_packet.asbytes,('<broadcast>',5000))
     offer_wait(clientsock)
 
 def offer_wait(clientsock):
-    print("aaaaaaaaaaaaaaaaaaaaaaaaa")
     recv_packet, addr = clientsock.recvfrom(1024)
     packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
     dhcp_type = packet.options.as_dict()['dhcp_message_type']
     global ip 
     global host_mc
-    print("here77")
     if packet.op == 'BOOTREPLY' and dhcp_type == 'DHCPOFFER' :
         host_mc = packet.chaddr
         
-        print(host_mc)
         offer_ip = packet.yiaddr
         ip = offer_ip
         rec_ID = packet.xid
@@ -85,7 +79,6 @@ def offer_wait(clientsock):
             print('Device already assigned local IP')
 
 def send_Req(offer_ip, rec_ID,clientsock):
-    print("sssssssssss")
     packet = dhcppython.packet.DHCPPacket(op="BOOTREQUEST",
     htype="ETHERNET",
     hlen=6,
@@ -102,29 +95,23 @@ def send_Req(offer_ip, rec_ID,clientsock):
     file=b'',
     options=dhcppython.options.OptionList([dhcppython.options.options.short_value_to_object(53, "DHCPREQUEST")]))
     clientsock.sendto(packet.asbytes, ('<broadcast>', 5000))
-    print('reached')
     connect(clientsock)
 
 # Add if condition
 def connect(clientsock):
 
-    print("c0nnect")
-    print(disc)
     if not disc:
         recv_packet, addr = clientsock.recvfrom(1024)
        # icmp_send(clientsock,"10.0.0.3",addr[1],True)
-        print("c0nnect2")
         packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
         global ip
         global server_ip
         global recID
         global connected
         server_ip = packet.yiaddr
-        print(server_ip)
         #ip = packet.yiaddr 
         recID = packet.xid
         time = packet.secs
-        print(time)
 
         if not connected:
            # icmp_listener = Thread(target=icmp_recieve, args=(clientsock,))
@@ -133,19 +120,21 @@ def connect(clientsock):
             time_Thread.start()
 
         connected = True
-        print(ip)
+        print("connected as " + str(ip))
 
 def tcp_sender(s):
     user_input = "start"
     global mac_addr
     while user_input.strip() != "/e":
         user_input = input("Some input please: ")
-        user_ip = input("Some input ip: ")
-        tcp_send_try(s,user_input,ip,user_ip.strip(),mac_addr,tcp_port,tcp_sender_port)
+        if(user_input == "Dis:") :
+            Disconnect(clientsock)
+        else:   
+            user_ip = input("Some input ip: ")
+            print(tcp_send_try(s,user_input,ip,user_ip.strip(),mac_addr,tcp_port,tcp_sender_port))
         
 
 def Disconnect(clientsock):
-    print("disconecting")
     global disc
     disc = True
     global ip
@@ -157,7 +146,7 @@ def Disconnect(clientsock):
     secs=0,
     flags=0,
     ciaddr=ipaddress.IPv4Address(0),
-    yiaddr=ipaddress.IPv4Address(ip),
+    yiaddr=ipaddress.IPv4Address(cust_IP),
     siaddr=ipaddress.IPv4Address(0),
     giaddr=ipaddress.IPv4Address(0),
     chaddr=mac_addr,
@@ -167,6 +156,8 @@ def Disconnect(clientsock):
     clientsock.sendto(packet.asbytes, ('<broadcast>', 5000)) 
     timeout_thread.running = False
     print("Disconnected")
+    sleep(1)
+    quit()
 
 def icmp_send(clientsock,sendTo, addr, first_send):
     time_stamp = time.time()
@@ -191,7 +182,6 @@ def icmp_recieve(clientsock):
         try:
             icmp_packet, addr = clientsock.recvfrom(1024)
             icmp_dict = json.loads(icmp_packet.decode('utf-8'))
-            print(icmp_dict)
             if (icmp_dict['first_send'] == True):
                 #icmp_dict['first_send'] = False
                 icmp_dict["send_IP"] = icmp_dict['ip']
@@ -216,7 +206,7 @@ def main():
     global cust_IP
     global mac_addr 
     cust_IP = gen_ip()
-    mac_addr = gen_mac()
+    global clientsock
     
     clientsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     clientsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -224,7 +214,7 @@ def main():
     clientsock.bind(('',4020))
     send_DHCPDisc(clientsock)
     lock.acquire()
-    #Disconnect(clientsock)
+    
     lock.release()
 
     
@@ -243,7 +233,7 @@ def main():
     sender.start()
     global count_packet
     global icmp_packet_1
-    
+    #Disconnect(clientsock)
     while True:
         data = tcp_rec(s)
         try:
@@ -279,4 +269,4 @@ def main():
 if __name__ == '__main__':
     main()
 
-atexit.register(Disconnect)
+atexit.register(Disconnect,clientsock)
