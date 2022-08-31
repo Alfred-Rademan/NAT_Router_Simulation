@@ -33,7 +33,8 @@ count_t = 0
 
 ip_natbox = "127.0.0.1"
 def disconnect(packet, addr):
-    print("disconect")
+    print("disconnect")
+    print(addr[1])
     client_mac = packet.chaddr
     client_ip = packet.yiaddr
     print(nat_table)
