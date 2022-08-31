@@ -53,12 +53,13 @@ def timeout(lease_time, clientsock):
         
 
 def send_DHCPDisc(clientsock):
-
+    print("disc")
     dhcp_packet = dhcppython.packet.DHCPPacket.Discover(mac_addr)
     clientsock.sendto(dhcp_packet.asbytes,('<broadcast>',5000))
     offer_wait(clientsock)
 
 def offer_wait(clientsock):
+    print("aaaaaaaaaaaaaaaaaaaaaaaaa")
     recv_packet, addr = clientsock.recvfrom(1024)
     packet = dhcppython.packet.DHCPPacket.from_bytes(recv_packet)
     dhcp_type = packet.options.as_dict()['dhcp_message_type']
@@ -84,7 +85,7 @@ def offer_wait(clientsock):
             print('Device already assigned local IP')
 
 def send_Req(offer_ip, rec_ID,clientsock):
-
+    print("sssssssssss")
     packet = dhcppython.packet.DHCPPacket(op="BOOTREQUEST",
     htype="ETHERNET",
     hlen=6,
@@ -144,6 +145,7 @@ def tcp_sender(s):
         
 
 def Disconnect(clientsock):
+    print("disconecting")
     global disc
     disc = True
     global ip
